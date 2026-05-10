@@ -1,122 +1,212 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import DatePicker from 'react-datepicker';
+import { format } from 'date-fns';
+import 'react-datepicker/dist/react-datepicker.css';
+import './App.css';
+import NewOrderModal from './NewOrderModal';
+import OrderDetailModal from './OrderDetailModal';
 
-function App() {
-  const [count, setCount] = useState(0)
+const today = new Date();
+
+const Stats = ({ stats }) => (
+  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+    {[
+      { label: '今日', value: stats.today },
+      { label: '本週', value: stats.week },
+      { label: '本月', value: stats.month },
+      { label: '年度', value: stats.year },
+    ].map(s => (
+      <div key={s.label} className="stats-card">
+        <div className="stats-label">{s.label}</div>
+        <div className="stats-value">{s.value}</div>
+      </div>
+    ))}
+  </div>
+);
+
+const QueryForm = ({ startDate, endDate, customer, onChange, onSubmit, onAdd }) => (
+  <div className="query-form">
+    <div>
+      <label>開始日</label>
+      <DatePicker
+        selected={startDate}
+        onChange={onChange.start}
+        dateFormat="yyyy-MM-dd"
+        popperPlacement="bottom-end"
+      />
+    </div>
+    <div>
+      <label>截止日</label>
+      <DatePicker
+        selected={endDate}
+        onChange={onChange.end}
+        dateFormat="yyyy-MM-dd"
+        popperPlacement="bottom-end"
+      />
+    </div>
+    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+      <button
+        onClick={onAdd}
+        className="btn btn-cta"
+        style={{ width: '100%' }}
+      >
+        新增
+      </button>
+    </div>
+    <div style={{ gridColumn: 'span 2' }}>
+      <label>客戶</label>
+      <input
+        type="text"
+        value={customer}
+        onChange={onChange.customer}
+        placeholder="輸入客戶名稱"
+      />
+    </div>
+    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+      <button
+        onClick={onSubmit}
+        className="btn btn-primary"
+        style={{ width: '100%' }}
+      >
+        查詢
+      </button>
+    </div>
+  </div>
+);
+
+const OrderCard = ({ order, onClick }) => (
+  <div onClick={onClick} className="order-card">
+    <div className="order-card-header">
+      <div className="order-card-header-title">訂單日: {order.orderNo}</div>
+    </div>
+    <div className="order-card-body">
+      <div className="order-card-row">
+        <span className="order-card-label">📅 下單</span>
+        <span className="order-card-value">{order.date}</span>
+      </div>
+      <div className="order-card-row">
+        <span className="order-card-label">📦 撿貨</span>
+        <span className="order-card-value">{order.date2 || '-'}</span>
+      </div>
+      <div className="order-card-row">
+        <span className="order-card-label">👤 客戶</span>
+        <span className="order-card-value">{order.customerName}</span>
+      </div>
+      <div className="order-card-row">
+        <span className="order-card-label">📦 件數</span>
+        <span className="order-card-value">{order.totalQty} 件 / {order.totalBoxes} 箱</span>
+      </div>
+      <div className="order-card-row">
+        <span className="order-card-label">🖼 圖片</span>
+        <span className="order-card-value">{order.imageqt || 0}</span>
+      </div>
+      {order.memo && (
+        <div className="order-card-row">
+          <span className="order-card-label">📝 備註</span>
+          <span className="order-card-value">{order.memo}</span>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+export default function App() {
+  const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState({ today: 0, week: 0, month: 0, year: 0 });
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [customer, setCustomer] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [selectedOrderNo, setSelectedOrderNo] = useState(null);
+
+  const fetchStats = () => {
+    axios.get('/api/stats').then(r => setStats(r.data)).catch(console.error);
+  };
+
+  const fetchOrders = (start = startDate, end = endDate, cust = customer) => {
+    const params = {
+      start_date: format(start, 'yyyy-MM-dd'),
+      end_date: format(end, 'yyyy-MM-dd'),
+    };
+    if (cust) params.customer = cust;
+    axios.get('/api/shipping', { params }).then(r => setOrders(r.data)).catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchStats();
+    fetchOrders();
+  }, []);
+
+  const handleSubmit = () => {
+    fetchOrders();
+  };
+
+  const handleAdd = () => {
+    setShowModal(true);
+  };
+
+  const handleCardClick = (orderNo) => {
+    setSelectedOrderNo(orderNo);
+  };
+
+  const handleModalClose = () => {
+    setShowModal(false);
+  };
+
+  const handleDetailModalClose = () => {
+    setSelectedOrderNo(null);
+  };
+
+  const handleOrderAdded = () => {
+    fetchOrders();
+    fetchStats();
+  };
+
+  const handleOrderUpdated = () => {
+    fetchOrders();
+    fetchStats();
+  };
+
+  const handleOrderDeleted = () => {
+    fetchOrders();
+    fetchStats();
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <div style={{ padding: '8px 16px', maxWidth: '600px', margin: '0 auto' }}>
+      <h1 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px', color: 'var(--color-text)' }}>訂單紀錄</h1>
+      <Stats stats={stats} />
+      <QueryForm
+        startDate={startDate}
+        endDate={endDate}
+        customer={customer}
+        onChange={{
+          start: setStartDate,
+          end: setEndDate,
+          customer: e => setCustomer(e.target.value),
+        }}
+        onSubmit={handleSubmit}
+        onAdd={handleAdd}
+      />
+      <div>
+        {orders.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-text">尚無訂單資料</div>
+          </div>
+        ) : (
+          orders.map(o => <OrderCard key={o.id} order={o} onClick={() => handleCardClick(o.orderNo)} />)
+        )}
+      </div>
+      {showModal && <NewOrderModal onClose={handleModalClose} onAdded={handleOrderAdded} />}
+      {selectedOrderNo && (
+        <OrderDetailModal
+          orderNo={selectedOrderNo}
+          onClose={handleDetailModalClose}
+          onUpdated={handleOrderUpdated}
+          onDeleted={handleOrderDeleted}
+        />
+      )}
+    </div>
+  );
 }
-
-export default App

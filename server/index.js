@@ -1,17 +1,39 @@
+require('dotenv').config({ path: '../.env' });
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const app = express();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const shippingRoutes = require('./routes/shipping');
-const PORT = 3020;
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use('/api/shipping', shippingRoutes);
-
-app.get('/api', (req, res) => {
-  res.json({ message: "Hello from server!" });
+app.get('/api/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', filename);
+  res.sendFile(filePath);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+const upload = multer({ storage: multer.memoryStorage() });
+
+const verifyLineToken = (req, res, next) => {
+  if (process.env.SKIP_LINE_AUTH === 'true') {
+    return next();
+  }
+
+  if (req.method === 'GET' || req.path.includes('/images')) {
+    return next();
+  }
+  const token = req.headers['x-line-channel-secret'];
+  if (!token || token !== process.env.CHANNEL_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+app.use('/api/shipping', verifyLineToken, require('./routes/shipping'));
+app.use('/api/stats', require('./stats'));
+
+app.listen(3020, () => console.log('Server running on 3020'));
+app.get('/api/test', (req, res) => res.send("API IS WORKING"));
