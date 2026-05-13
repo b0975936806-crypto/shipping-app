@@ -48,6 +48,10 @@ router.get('/', (req, res) => {
 
 router.post('/', upload.any(), (req, res) => {
     try {
+        if (!req.user.can_create) {
+            return res.status(403).json({ error: 'Permission denied: cannot create' });
+        }
+
         const { date, date2, customerName, totalQty, status, memo } = req.body;
         
         if (!date || !customerName) {
@@ -120,16 +124,20 @@ router.get('/:orderNo', (req, res) => {
 
 router.put('/:orderNo', (req, res) => {
     try {
+        if (!req.user.can_edit) {
+            return res.status(403).json({ error: 'Permission denied: cannot edit' });
+        }
+
         const { orderNo } = req.params;
-        const { totalQty, memo, date2 } = req.body;
+        const { customerName, totalQty, memo, date2 } = req.body;
         
         const order = db.prepare('SELECT * FROM orders WHERE orderNo = ?').get(orderNo);
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
         
-        db.prepare('UPDATE orders SET totalQty = ?, memo = ?, date2 = ? WHERE orderNo = ?')
-            .run(totalQty || order.totalQty, memo || order.memo, date2 || order.date2, orderNo);
+        db.prepare('UPDATE orders SET customerName = ?, totalQty = ?, memo = ?, date2 = ? WHERE orderNo = ?')
+            .run(customerName || order.customerName, totalQty || order.totalQty, memo || order.memo, date2 || order.date2, orderNo);
         
         res.json({ success: true });
     } catch (e) {
@@ -140,6 +148,10 @@ router.put('/:orderNo', (req, res) => {
 
 router.delete('/:orderNo/images/:imageId', (req, res) => {
     try {
+        if (!req.user.can_delete) {
+            return res.status(403).json({ error: 'Permission denied: cannot delete' });
+        }
+
         const { orderNo, imageId } = req.params;
         
         const image = db.prepare('SELECT * FROM order_images WHERE id = ? AND orderNo = ?').get(imageId, orderNo);
@@ -166,6 +178,10 @@ router.delete('/:orderNo/images/:imageId', (req, res) => {
 
 router.delete('/:orderNo', (req, res) => {
     try {
+        if (!req.user.can_delete) {
+            return res.status(403).json({ error: 'Permission denied: cannot delete' });
+        }
+
         const { orderNo } = req.params;
         
         const order = db.prepare('SELECT * FROM orders WHERE orderNo = ?').get(orderNo);
@@ -173,6 +189,18 @@ router.delete('/:orderNo', (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
         
+        // 1. 撈出所有圖檔路徑
+        const images = db.prepare('SELECT imagePath FROM order_images WHERE orderNo = ?').all(orderNo);
+        
+        // 2. 刪除實體檔案
+        images.forEach(img => {
+            const filePath = path.join(uploadDir, img.imagePath);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        });
+        
+        // 3. 刪除 DB 記錄
         db.prepare('DELETE FROM order_images WHERE orderNo = ?').run(orderNo);
         db.prepare('DELETE FROM orders WHERE orderNo = ?').run(orderNo);
         

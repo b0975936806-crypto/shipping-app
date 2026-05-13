@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
+import imageCompression from 'browser-image-compression';
 import { format } from 'date-fns';
 import 'react-datepicker/dist/react-datepicker.css';
 import './App.css';
@@ -8,6 +9,7 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
   const [order, setOrder] = useState(null);
   const [images, setImages] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [editCustomerName, setEditCustomerName] = useState('');
   const [totalQty, setTotalQty] = useState('');
   const [memo, setMemo] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -22,11 +24,12 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
   const fetchOrderDetail = async () => {
     try {
-      const res = await axios.get(`/api/shipping/${orderNo}`);
+      const res = await api.get(`/shipping/${orderNo}`);
       setOrder(res.data);
       setImages(res.data.images || []);
       setTotalQty(res.data.totalQty || '');
       setMemo(res.data.memo || '');
+      setEditCustomerName(res.data.customerName || '');
     } catch (e) {
       console.error('Failed to fetch order', e);
       alert('載入失敗');
@@ -37,7 +40,7 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
   const handleDeleteImage = async (imageId) => {
     if (!confirm('確定刪除這張圖片？')) return;
     try {
-      await axios.delete(`/api/shipping/${orderNo}/images/${imageId}`, { headers });
+      await api.delete(`/shipping/${orderNo}/images/${imageId}`, { headers });
       setImages(images.filter(img => img.id !== imageId));
     } catch (e) {
       console.error('Failed to delete image', e);
@@ -51,9 +54,24 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
     setIsUploading(true);
     try {
-      const fd = new FormData();
-      Array.from(files).forEach(img => fd.append('images', img));
-      await axios.post(`/api/shipping/${orderNo}/images`, fd, { headers });
+      const compressionOptions = {
+        maxWidthOrHeight: 1500,
+        useWebWorker: true,
+        maxSizeMB: 1,
+        maxIteration: 10,
+      };
+
+      const compressedFiles = await Promise.all(
+        Array.from(files).map(file => imageCompression(file, compressionOptions))
+      );
+
+      await Promise.all(
+        compressedFiles.map(file => {
+          const fd = new FormData();
+          fd.append('images', file, file.name);
+          return api.post(`/shipping/${orderNo}/images`, fd);
+        })
+      );
       await fetchOrderDetail();
     } catch (e) {
       console.error('Failed to upload images', e);
@@ -66,7 +84,8 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
   const handleUpdate = async () => {
     try {
-      await axios.put(`/api/shipping/${orderNo}`, {
+      await api.put(`/shipping/${orderNo}`, {
+        customerName: editCustomerName,
         totalQty,
         memo,
         date2: order.date2
@@ -82,7 +101,7 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
   const handleDeleteOrder = async () => {
     try {
-      await axios.delete(`/api/shipping/${orderNo}`, { headers });
+      await api.delete(`/shipping/${orderNo}`, { headers });
       onDeleted();
       onClose();
     } catch (e) {
@@ -122,7 +141,15 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
           <div className="form-row">
             <label>客戶</label>
-            <span>{order.customerName}</span>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editCustomerName}
+                onChange={e => setEditCustomerName(e.target.value)}
+              />
+            ) : (
+              <span>{order.customerName}</span>
+            )}
           </div>
 
           <div className="form-row">

@@ -2,6 +2,7 @@ require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 const app = express();
 
 app.use(express.json());
@@ -17,23 +18,34 @@ app.get('/api/uploads/:filename', (req, res) => {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const verifyLineToken = (req, res, next) => {
-  if (process.env.SKIP_LINE_AUTH === 'true') {
-    return next();
-  }
+// 確保 auth middleware 有引入
+const { authenticate } = require('./middleware/auth');
 
-  if (req.method === 'GET' || req.path.includes('/images')) {
-    return next();
-  }
-  const token = req.headers['x-line-channel-secret'];
-  if (!token || token !== process.env.CHANNEL_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
+// verifyLineToken 已停用，改用 JWT authenticate
+const verifyLineToken = (req, res, next) => {
+  return res.status(401).json({ error: 'LINE token auth is deprecated' });
 };
 
-app.use('/api/shipping', verifyLineToken, require('./routes/shipping'));
-app.use('/api/stats', require('./stats'));
+// 確保預設 admin 帳號存在
+function ensureDefaultUser() {
+  const { db } = require('./data/manager');
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get('ring');
+  if (!existing) {
+    const hash = bcrypt.hashSync('23289323', 10);
+    db.prepare(`
+      INSERT INTO users (username, password, role, can_create, can_edit, can_delete)
+      VALUES (?, ?, 'admin', 1, 1, 1)
+    `).run('ring', hash);
+    console.log('Default admin user "ring" created');
+  }
+}
 
-app.listen(3020, () => console.log('Server running on 3020'));
+app.use('/api/shipping', authenticate, require('./routes/shipping'));
+app.use('/api/stats', require('./stats'));
+app.use('/api/auth', require('./routes/auth'));
+
+app.listen(3020, () => {
+  console.log('Server running on 3020');
+  ensureDefaultUser();
+});
 app.get('/api/test', (req, res) => res.send("API IS WORKING"));

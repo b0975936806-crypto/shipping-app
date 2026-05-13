@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from './api';
+import imageCompression from 'browser-image-compression';
 import DatePicker from 'react-datepicker';
 import { format } from 'date-fns';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -22,6 +23,21 @@ export default function NewOrderModal({ onClose, onAdded }) {
 
     setIsSubmitting(true);
     try {
+      // 圖片壓縮
+      let compressedImages = [];
+      if (images.length > 0) {
+        const compressionOptions = {
+          maxWidthOrHeight: 1500,
+          useWebWorker: true,
+          maxSizeMB: 1,
+          maxIteration: 10,
+        };
+        compressedImages = await Promise.all(
+          Array.from(images).map(file => imageCompression(file, compressionOptions))
+        );
+      }
+
+      // Step 1: 先建立訂單（不帶圖片）
       const fd = new FormData();
       fd.append('date', format(date, 'yyyy-MM-dd'));
       fd.append('date2', format(date2, 'yyyy-MM-dd'));
@@ -29,16 +45,15 @@ export default function NewOrderModal({ onClose, onAdded }) {
       fd.append('totalQty', totalQty);
       fd.append('status', 'draft');
       fd.append('memo', memo);
-      Array.from(images).forEach(img => fd.append('images', img));
 
-      const headers = { 'X-Line-Channel-Secret': import.meta.env.VITE_CHANNEL_SECRET || '' };
-      const res = await axios.post('/api/shipping', fd, { headers });
+      const res = await api.post('/shipping', fd);
       const orderNo = res.data.orderNo;
 
-      if (images.length > 0) {
+      // Step 2: 用真實 orderNo 上傳圖片
+      if (compressedImages.length > 0) {
         const imageFd = new FormData();
-        Array.from(images).forEach(img => imageFd.append('images', img));
-        await axios.post(`/api/shipping/${orderNo}/images`, imageFd);
+        compressedImages.forEach(img => imageFd.append('images', img, img.name));
+        await api.post(`/shipping/${orderNo}/images`, imageFd);
       }
 
       onAdded();

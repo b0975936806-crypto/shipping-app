@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  shipping-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: shipping-api
+    restart: unless-stopped
+    ports:
+      - "3020:3020"
+    volumes:
+      - ./server/data:/app/server/data
+      - ./server/uploads:/app/server/uploads
+    environment:
+      - NODE_ENV=production
+      - SKIP_LINE_AUTH=true
+    networks:
+      - shipping-net
+
+  shipping-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: shipping-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - shipping-net
+
+networks:
+  shipping-net:
+    driver: bridge
