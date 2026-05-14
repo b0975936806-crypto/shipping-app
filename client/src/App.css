@@ -223,7 +223,7 @@ body {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  touch-action: pan-y;
+  /* touch-action: auto - let browser handle pinch zoom natively, swipe handled via document listeners */
 }
 
 .modal,
