@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
 import imageCompression from 'browser-image-compression';
 import { format } from 'date-fns';
@@ -16,6 +16,10 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
   const [isUploading, setIsUploading] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [enlargedIndex, setEnlargedIndex] = useState(null);
+
+  // Touch swipe state
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
 
   const headers = { 'X-Line-Channel-Secret': import.meta.env.VITE_CHANNEL_SECRET || '' };
 
@@ -123,6 +127,45 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
     const newIdx = Math.min(images.length - 1, enlargedIndex + 1);
     setEnlargedIndex(newIdx);
     setEnlargedImage(`/api/uploads/${images[newIdx].imagePath}`);
+  };
+
+  // Touch swipe handlers
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartX.current === null) return;
+    const deltaX = e.touches[0].clientX - touchStartX.current;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    // Prevent scroll if horizontal swipe
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // Only trigger if horizontal swipe > 50px and not a vertical scroll
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0 && enlargedIndex < images.length - 1) {
+        // Swipe left -> next
+        const newIdx = enlargedIndex + 1;
+        setEnlargedIndex(newIdx);
+        setEnlargedImage(`/api/uploads/${images[newIdx].imagePath}`);
+      } else if (deltaX > 0 && enlargedIndex > 0) {
+        // Swipe right -> prev
+        const newIdx = enlargedIndex - 1;
+        setEnlargedIndex(newIdx);
+        setEnlargedImage(`/api/uploads/${images[newIdx].imagePath}`);
+      }
+    }
   };
 
   if (!order) {
@@ -309,13 +352,20 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
         )}
 
         {enlargedImage && (
-          <div className="modal-overlay" onClick={() => setEnlargedImage(null)}>
+          <div
+            className="modal-overlay"
+            onClick={() => setEnlargedImage(null)}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img
                 src={enlargedImage}
                 alt=""
                 style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
                 onClick={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
               />
               <button
                 onClick={() => setEnlargedImage(null)}
