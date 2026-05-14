@@ -15,6 +15,7 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState(null);
+  const [enlargedIndex, setEnlargedIndex] = useState(null);
 
   const headers = { 'X-Line-Channel-Secret': import.meta.env.VITE_CHANNEL_SECRET || '' };
 
@@ -110,6 +111,20 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
     }
   };
 
+  const prevImage = (e) => {
+    e.stopPropagation();
+    const newIdx = Math.max(0, enlargedIndex - 1);
+    setEnlargedIndex(newIdx);
+    setEnlargedImage(`/api/uploads/${images[newIdx].imagePath}`);
+  };
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    const newIdx = Math.min(images.length - 1, enlargedIndex + 1);
+    setEnlargedIndex(newIdx);
+    setEnlargedImage(`/api/uploads/${images[newIdx].imagePath}`);
+  };
+
   if (!order) {
     return (
       <div className="modal-overlay">
@@ -189,12 +204,12 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
               {images.length === 0 && (
                 <div className="image-placeholder">無圖片</div>
               )}
-              {images.map(img => (
+              {images.map((img, idx) => (
                 <div key={img.id} className="image-thumb">
                   <img
                     src={`/api/uploads/${img.imagePath}`}
                     alt=""
-                    onClick={() => setEnlargedImage(`/api/uploads/${img.imagePath}`)}
+                    onClick={() => { setEnlargedImage(`/api/uploads/${img.imagePath}`); setEnlargedIndex(idx); }}
                     style={{ cursor: 'pointer' }}
                     onError={e => e.target.style.display = 'none'}
                   />
@@ -295,7 +310,7 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
 
         {enlargedImage && (
           <div className="modal-overlay" onClick={() => setEnlargedImage(null)}>
-            <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+            <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img
                 src={enlargedImage}
                 alt=""
@@ -305,24 +320,54 @@ export default function OrderDetailModal({ orderNo, onClose, onUpdated, onDelete
               <button
                 onClick={() => setEnlargedImage(null)}
                 style={{
-                  position: 'absolute',
-                  top: '-12px',
-                  right: '-12px',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: '#333',
-                  color: 'white',
-                  border: '2px solid white',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  position: 'absolute', top: '-12px', right: '-12px',
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: '#333', color: 'white', border: '2px solid white',
+                  fontSize: '18px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10
                 }}
               >
                 ×
               </button>
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    style={{
+                      position: 'absolute', left: '-50px', top: '50%', transform: 'translateY(-50%)',
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      background: '#333', color: 'white', border: '2px solid white',
+                      fontSize: '22px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: enlargedIndex === 0 ? 0.3 : 1,
+                      pointerEvents: enlargedIndex === 0 ? 'none' : 'auto'
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    style={{
+                      position: 'absolute', right: '-50px', top: '50%', transform: 'translateY(-50%)',
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      background: '#333', color: 'white', border: '2px solid white',
+                      fontSize: '22px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: enlargedIndex === images.length - 1 ? 0.3 : 1,
+                      pointerEvents: enlargedIndex === images.length - 1 ? 'none' : 'auto'
+                    }}
+                  >
+                    ›
+                  </button>
+                  <div style={{
+                    position: 'absolute', bottom: '-28px', left: '50%', transform: 'translateX(-50%)',
+                    color: 'white', fontSize: '13px', background: 'rgba(0,0,0,0.6)',
+                    padding: '2px 10px', borderRadius: '12px'
+                  }}>
+                    {enlargedIndex + 1} / {images.length}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
